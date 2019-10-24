@@ -1827,7 +1827,7 @@ class Setup(object):
                     '--standalone',
                     '--preferred-challenges',
                     'http',
-                    '-m'
+                    '-m',
                     self.admin_email,
                     '--agree-tos',
                     '-d', 
@@ -1859,7 +1859,7 @@ class Setup(object):
                     if int(re.match("\(VALID: (\d{1,2}) days\)", certificateInformation['Expiry Date']).group(1)) >= 15:
                         return True, certificateInformation['Certificate Path'], certificateInformation['Private Key Path']
 
-        retrun False, None, None
+        return False, None, None
 
 
     def gen_cert(self, suffix, password, user='root', cn=None):
@@ -5026,7 +5026,7 @@ if __name__ == '__main__':
     setupOptions['listenAllInterfaces'] = argsp.listen_all_interfaces
     setupOptions['remoteCouchbase'] = argsp.remote_couchbase
     setupOptions['remoteLdap'] = argsp.remote_ldap
-    setupOptions['useLetsencryptCerts'] = argsp.use-letsencrypt-certs
+    setupOptions['useLetsencryptCerts'] = argsp.use_letsencrypt_certs
 
     if argsp.no_data:
         setupOptions['loadData'] = False
@@ -5046,6 +5046,7 @@ if __name__ == '__main__':
             sys.exit(2)
 
     installObject = Setup(setupOptions['install_dir'])
+    installObject.check_by_certbot_cert(installObject.hostname)
     attribDataTypes.startup(setupOptions['install_dir'])
 
     if setupOptions['loadTestDataExit']:
