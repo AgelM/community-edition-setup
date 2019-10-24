@@ -1817,9 +1817,9 @@ class Setup(object):
             self.logIt("Error encoding test passwords", True)
             self.logIt(traceback.format_exc(), True)
 
-    def gen_cert_by_certbot(self, csrFile=None, cn=None):
+    def gen_cert_with_certbot(self, csrFile=None, cn=None):
         self.logIt('Generating Certificate for the domain %s' % cn)
-        testCerts, publucKey, privateKey = check_by_certbot_cert(cn)
+        testCerts, publucKey, privateKey = self.check_cert_with_certbot(cn)
         if not testCerts:
             commandToExecute = [self.certbotCommand, 
                     'certonly',
@@ -1838,11 +1838,11 @@ class Setup(object):
                 commandToExecute.append('--csr')
                 commandToExecute.append(csrFile)
             self.run(commandToExecute)
-            return check_by_certbot_cert(cn)
+            return self.check_cert_with_certbot(cn)
         else:
             return testCerts, publucKey, privateKey
 
-    def check_by_certbot_cert(self, cn):
+    def check_cert_with_certbot(self, cn):
         self.logIt('Checking for an existing valid certificate for %s' % cn)
         output = self.run([self.certbotCommand, 'certificates', '-d', cn ])
         if output == None:
@@ -1902,7 +1902,7 @@ class Setup(object):
                   '/C=%s/ST=%s/L=%s/O=%s/CN=%s/emailAddress=%s' % (self.countryCode, self.state, self.city, self.orgName, certCn, self.admin_email)
                   ])
         if self.useLetsencryptCerts == True:
-            testCerts, certbot_pubic_certificate, certbot_key = gen_cert_by_certbot(csr, cn)
+            testCerts, certbot_pubic_certificate, certbot_key = self.gen_cert_with_certbot(csr, cn)
             if testCerts:
                 shutil.copy( certbot_pubic_certificate, public_certificate)
                 shutil.copy( certbot_key, key)
