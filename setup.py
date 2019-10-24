@@ -1842,22 +1842,22 @@ class Setup(object):
         else:
             return testCerts, publucKey, privateKey
 
-    def check_by_certbot_cert(cn=None):
+    def check_by_certbot_cert(self, cn):
         self.logIt('Checking for an existing valid certificate for %s' % cn)
         output = self.run([self.certbotCommand, 'certificates', '-d', cn ])
         if output == None:
             return False, None, None
         else:
             certificateInformation = {}
-            for line in output:
-                certificateEntry = CertBotCertificateInformation()
+            outputSplits = iter(output.splitlines())
+            for line in outputSplits:
                 if line.strip().startswith("Certificate Name"):
-                    for certIter in range(3):
-                        key, value = (next(output, '').strip()).partition(":")[::2]
+                    for certIter in range(4):
+                        key, value = (next(outputSplits, '').strip()).partition(":")[::2]
                         certificateInformation[key.strip()] = value.strip()
-                if cn in certificateInformation['Domains']:
-                    if int(re.match("\(VALID: (\d{1,2}) days\)", certificateInformation['Expiry Date']).group(1)) >= 15:
-                        return True, certificateInformation['Certificate Path'], certificateInformation['Private Key Path']
+                    if cn in certificateInformation['Domains']:
+                        if int(re.match(".*\(VALID:\s(\d{1,2})\sdays\).*", certificateInformation['Expiry Date']).group(1)) >= 15:
+                            return True, certificateInformation['Certificate Path'], certificateInformation['Private Key Path']
 
         return False, None, None
 
@@ -5046,7 +5046,6 @@ if __name__ == '__main__':
             sys.exit(2)
 
     installObject = Setup(setupOptions['install_dir'])
-    installObject.check_by_certbot_cert(installObject.hostname)
     attribDataTypes.startup(setupOptions['install_dir'])
 
     if setupOptions['loadTestDataExit']:
