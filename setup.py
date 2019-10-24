@@ -320,6 +320,7 @@ class Setup(object):
         self.cmd_rpm = '/bin/rpm'
         self.cmd_dpkg = '/usr/bin/dpkg'
         self.opensslCommand = '/usr/bin/openssl'
+        self.certbotCommand = '/usr/bin/certbot'
         self.systemctl = os.popen('which systemctl').read().strip()
 
         self.sysemProfile = "/etc/profile"
@@ -336,6 +337,7 @@ class Setup(object):
         self.jetty_version = '9.4.19.v20190610'
         self.jython_version = '2.7.2a'
         self.node_version = '12.6.0'
+        # self.certbot_version = '0.23.0'
         self.apache_version = None
         self.opendj_version = None
 
@@ -350,6 +352,7 @@ class Setup(object):
         self.installOxAuthRP = False
         self.installPassport = False
         self.installGluuRadius = False
+        self.useLetsencryptCerts = False
 
         self.gluuPassportEnabled = 'false'
         self.gluuRadiusEnabled = 'false'
@@ -886,6 +889,7 @@ class Setup(object):
             txt += 'Install oxAuth RP'.ljust(30) + repr(self.installOxAuthRP).rjust(35) + "\n"
             txt += 'Install Passport '.ljust(30) + repr(self.installPassport).rjust(35) + "\n"
             txt += 'Install Gluu Radius '.ljust(30) + repr(self.installGluuRadius).rjust(35) + "\n"
+            txt += 'Use Letsencript Certificates'.ljust(30) + repr(self.useLetsencryptCerts).rjust(35) + "\n"
 
             return txt
         except:
@@ -1813,6 +1817,51 @@ class Setup(object):
             self.logIt("Error encoding test passwords", True)
             self.logIt(traceback.format_exc(), True)
 
+    def gen_cert_by_certbot(self, csrFile=None, cn=None):
+        self.logIt('Generating Certificate for the domain %s' % cn)
+        testCerts, publucKey, privateKey = check_by_certbot_cert(cn)
+        if not testCerts:
+            commandToExecute = [self.certbotCommand, 
+                    'certonly',
+                    'certificates',
+                    '--standalone',
+                    '--preferred-challenges',
+                    'http',
+                    '-m'
+                    self.admin_email,
+                    '--agree-tos',
+                    '-d', 
+                    cn,
+                    '-n' ]
+
+            if csrFile is not None:
+                commandToExecute.append('--csr')
+                commandToExecute.append(csrFile)
+            self.run(commandToExecute)
+            return check_by_certbot_cert(cn)
+        else:
+            return testCerts, publucKey, privateKey
+
+    def check_by_certbot_cert(cn=None):
+        self.logIt('Checking for an existing valid certificate for %s' % cn)
+        output = self.run([self.certbotCommand, 'certificates', '-d', cn ])
+        if output == None:
+            return False, None, None
+        else:
+            certificateInformation = {}
+            for line in output:
+                certificateEntry = CertBotCertificateInformation()
+                if line.strip().startswith("Certificate Name"):
+                    for certIter in range(3):
+                        key, value = (next(output, '').strip()).partition(":")[::2]
+                        certificateInformation[key.strip()] = value.strip()
+                if cn in certificateInformation['Domains']:
+                    if int(re.match("\(VALID: (\d{1,2}) days\)", certificateInformation['Expiry Date']).group(1)) >= 15:
+                        return True, certificateInformation['Certificate Path'], certificateInformation['Private Key Path']
+
+        retrun False, None, None
+
+
     def gen_cert(self, suffix, password, user='root', cn=None):
         self.logIt('Generating Certificate for %s' % suffix)
         key_with_password = '%s/%s.key.orig' % (self.certFolder, suffix)
@@ -1852,18 +1901,27 @@ class Setup(object):
                   '-subj',
                   '/C=%s/ST=%s/L=%s/O=%s/CN=%s/emailAddress=%s' % (self.countryCode, self.state, self.city, self.orgName, certCn, self.admin_email)
                   ])
-        self.run([self.opensslCommand,
-                  'x509',
-                  '-req',
-                  '-days',
-                  '365',
-                  '-in',
-                  csr,
-                  '-signkey',
-                  key,
-                  '-out',
-                  public_certificate
-                  ])
+        if self.useLetsencryptCerts == True:
+            testCerts, certbot_pubic_certificate, certbot_key = gen_cert_by_certbot(csr, cn)
+            if testCerts:
+                shutil.copy( certbot_pubic_certificate, public_certificate)
+                shutil.copy( certbot_key, key)
+            else:
+                self.logIt('Failed to generate a Certificate from Letsencrypt.', True)
+
+        else:
+            self.run([self.opensslCommand,
+                    'x509',
+                    '-req',
+                    '-days',
+                    '365',
+                    '-in',
+                    csr,
+                    '-signkey',
+                    key,
+                    '-out',
+                    public_certificate
+                    ])
         self.run([self.cmd_chown, '%s:%s' % (user, user), key_with_password])
         self.run([self.cmd_chmod, '700', key_with_password])
         self.run([self.cmd_chown, '%s:%s' % (user, user), key])
@@ -3088,6 +3146,14 @@ class Setup(object):
             self.gluuRadiusEnabled = 'true'
         else:
             self.installGluuRadius = False
+
+        promptForLetsencriptCerts = self.getPrompt("Request Lets'encrypt certificates, via certbot?", 
+                                            self.getDefaultOption(self.useLetsencryptCerts)
+                                            )[0].lower()
+        if promptForLetsencriptCerts == 'y':
+            self.useLetsencryptCerts = True
+        else:
+            self.useLetsencryptCerts = False
 
 
     def get_filepaths(self, directory):
@@ -4901,6 +4967,7 @@ if __name__ == '__main__':
     parser.add_argument('--remote-ldap', help="Enables using remote LDAP server", action='store_true')
     parser.add_argument('--remote-couchbase', help="Enables using remote couchbase server", action='store_true')
     parser.add_argument('--no-data', help="Do not import any data to database backend, used for clustering", action='store_true')
+    parser.add_argument('--use-letsencrypt-certs', help="Enables the usage of Letsencript certificates for the Gluu Components.", action='store_true')
     argsp = parser.parse_args()
 
     if not argsp.n:
@@ -4921,6 +4988,7 @@ if __name__ == '__main__':
         'installOxAuthRP': False,
         'installPassport': False,
         'installGluuRadius': False,
+        'useLetsencryptCerts': False,
         'loadTestData': False,
         'allowPreReleasedFeatures': False,
         'listenAllInterfaces': False,
@@ -4958,6 +5026,7 @@ if __name__ == '__main__':
     setupOptions['listenAllInterfaces'] = argsp.listen_all_interfaces
     setupOptions['remoteCouchbase'] = argsp.remote_couchbase
     setupOptions['remoteLdap'] = argsp.remote_ldap
+    setupOptions['useLetsencryptCerts'] = argsp.use-letsencrypt-certs
 
     if argsp.no_data:
         setupOptions['loadData'] = False

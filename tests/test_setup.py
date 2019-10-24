@@ -15,6 +15,7 @@ def test_setup_load_properties(mock_logIt):
     assert_equal(obj.installSaml, False)
     assert_equal(obj.installCas, False)
     assert_equal(obj.installOxAuthRP, False)
+    assert_equal(obj.useLetsencryptCerts, False)
 
     # all false
     obj.load_properties('tests/sample1.properties')
@@ -25,6 +26,7 @@ def test_setup_load_properties(mock_logIt):
     assert_equal(obj.installSaml, False)
     assert_equal(obj.installCas, False)
     assert_equal(obj.installOxAuthRP, False)
+    assert_equal(obj.useLetsencryptCerts, False)
 
     # all true
     obj.load_properties('tests/sample2.properties')
@@ -35,6 +37,7 @@ def test_setup_load_properties(mock_logIt):
     assert_equal(obj.installSaml, True)
     assert_equal(obj.installCas, True)
     assert_equal(obj.installOxAuthRP, True)
+    assert_equal(obj.useLetsencryptCerts, False)
 
     # mix of both true and false
     obj.load_properties('tests/sample3.properties')
@@ -45,3 +48,5 @@ def test_setup_load_properties(mock_logIt):
     assert_equal(obj.installSaml, False)
     assert_equal(obj.installCas, False)
     assert_equal(obj.installOxAuthRP, True)
+    assert_equal(obj.useLetsencryptCerts, False)
+    
