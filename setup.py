@@ -1819,11 +1819,10 @@ class Setup(object):
 
     def gen_cert_with_certbot(self, csrFile=None, cn=None):
         self.logIt('Generating Certificate for the domain %s' % cn)
-        testCerts, publucKey, privateKey = self.check_cert_with_certbot(cn)
+        testCerts, publicKey, privateKey = self.check_cert_with_certbot(cn)
         if not testCerts:
             commandToExecute = [self.certbotCommand, 
                     'certonly',
-                    'certificates',
                     '--standalone',
                     '--preferred-challenges',
                     'http',
@@ -1840,7 +1839,7 @@ class Setup(object):
             self.run(commandToExecute)
             return self.check_cert_with_certbot(cn)
         else:
-            return testCerts, publucKey, privateKey
+            return testCerts, publicKey, privateKey
 
     def check_cert_with_certbot(self, cn):
         self.logIt('Checking for an existing valid certificate for %s' % cn)
@@ -1891,7 +1890,16 @@ class Setup(object):
         if certCn == None:
             certCn = self.hostname
 
-        self.run([self.opensslCommand,
+        if (self.useLetsencryptCerts == True) and (certCn is not 'localhost'):
+            testCerts, certbot_pubic_certificate, certbot_key = self.gen_cert_with_certbot(cn=certCn)
+            if testCerts:
+                shutil.copy( certbot_pubic_certificate, public_certificate)
+                shutil.copy( certbot_key, key)
+            else:
+                self.logIt('Failed to generate a Certificate from Letsencrypt.', True)
+
+        else:
+            self.run([self.opensslCommand,
                   'req',
                   '-new',
                   '-key',
@@ -1901,15 +1909,6 @@ class Setup(object):
                   '-subj',
                   '/C=%s/ST=%s/L=%s/O=%s/CN=%s/emailAddress=%s' % (self.countryCode, self.state, self.city, self.orgName, certCn, self.admin_email)
                   ])
-        if self.useLetsencryptCerts == True:
-            testCerts, certbot_pubic_certificate, certbot_key = self.gen_cert_with_certbot(csr, cn)
-            if testCerts:
-                shutil.copy( certbot_pubic_certificate, public_certificate)
-                shutil.copy( certbot_key, key)
-            else:
-                self.logIt('Failed to generate a Certificate from Letsencrypt.', True)
-
-        else:
             self.run([self.opensslCommand,
                     'x509',
                     '-req',
